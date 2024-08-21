@@ -1,3 +1,4 @@
+import java.sql.*;
 import java.util.*;
 
 class Book {
@@ -40,46 +41,97 @@ class Book {
 }
 
 class Library {
-    private List<Book> books;
-    private Map<Integer, Book> issuedBooks;
-
-    public Library() {
-        books = new ArrayList<>();
-        issuedBooks = new HashMap<>();
+        private Connection connect() {
+        String url = "jdbc:mysql://localhost:3306/LibraryDB";
+        String user = "root";
+        String password = "pulkit03";
+        Connection conn = null;
+        try {
+            conn = DriverManager.getConnection(url, user, password);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return conn;
     }
 
     public void addBook(Book book) {
-        books.add(book);
+        String sql = "INSERT INTO books(id, title, author, isIssued) VALUES(?, ?, ?, ?)";
+
+        try (Connection conn = this.connect();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, book.getId());
+            pstmt.setString(2, book.getTitle());
+            pstmt.setString(3, book.getAuthor());
+            pstmt.setBoolean(4, book.isIssued());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     public void issueBook(int bookId) {
-        for (Book book : books) {
-            if (book.getId() == bookId && !book.isIssued()) {
-                book.setIssued(true);
-                issuedBooks.put(bookId, book);
-                System.out.println("Book issued: " + book);
-                return;
+        String selectSql = "SELECT * FROM books WHERE id = ?";
+        String updateSql = "UPDATE books SET isIssued = true WHERE id = ?";
+
+        try (Connection conn = this.connect();
+             PreparedStatement selectStmt = conn.prepareStatement(selectSql);
+             PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+
+            selectStmt.setInt(1, bookId);
+            ResultSet rs = selectStmt.executeQuery();
+
+            if (rs.next() && !rs.getBoolean("isIssued")) {
+                updateStmt.setInt(1, bookId);
+                updateStmt.executeUpdate();
+                System.out.println("Book issued: " + rs.getString("title"));
+            } else {
+                System.out.println("Book not available or already issued.");
             }
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
-        System.out.println("Book not available or already issued.");
     }
 
     public void returnBook(int bookId) {
-        if (issuedBooks.containsKey(bookId)) {
-            Book book = issuedBooks.get(bookId);
-            book.setIssued(false);
-            issuedBooks.remove(bookId);
-            System.out.println("Book returned: " + book);
-        } else {
-            System.out.println("Book not found in issued books.");
+        String selectSql = "SELECT * FROM books WHERE id = ?";
+        String updateSql = "UPDATE books SET isIssued = false WHERE id = ?";
+
+        try (Connection conn = this.connect();
+             PreparedStatement selectStmt = conn.prepareStatement(selectSql);
+             PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+
+            selectStmt.setInt(1, bookId);
+            ResultSet rs = selectStmt.executeQuery();
+
+            if (rs.next() && rs.getBoolean("isIssued")) {
+                updateStmt.setInt(1, bookId);
+                updateStmt.executeUpdate();
+                System.out.println("Book returned: " + rs.getString("title"));
+            } else {
+                System.out.println("Book not found in issued books.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
     }
 
     public void displayBooks() {
-        System.out.println("Books in library:");
-    for (Book book : books) {
-        System.out.println(book.displayBookInfo());
-    }
+        String sql = "SELECT * FROM books";
+
+        try (Connection conn = this.connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            System.out.println("Books in library:");
+            while (rs.next()) {
+                System.out.println("ID: " + rs.getInt("id") + ", Title: " + rs.getString("title") + ", Author: " + rs.getString("author") + ", Issued: " + rs.getBoolean("isIssued"));
+            }
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
     }
 }
 
@@ -91,19 +143,22 @@ public class LibraryManagementSystem {
         int x=0;
         System.out.println("\nEnter 1 to Display all books, 2 to Add a book, 3 to Issue a book, 4 to Return a book, 5 to Exit");
         x = sc.nextInt();
-        sc.nextLine(); // Consume the newline character after nextInt()
+        sc.nextLine(); 
         while (x!=5) {
             switch (x) {
                 case 1:
                     library.displayBooks();
                     break;
                 case 2:
-                    System.out.println("Enter Name of the book: ");
-                    String name = sc.nextLine();
-                    System.out.println("Enter Name of Author: ");
-                    String aname = sc.nextLine();
                     System.out.println("Enter the ID of the book: ");
                     int id = sc.nextInt();
+		    sc.nextLine();
+                    System.out.println("Enter Name of the book: ");
+                    String name = sc.nextLine();
+		
+                    System.out.println("Enter Name of Author: ");
+                    String aname = sc.nextLine();
+
                     library.addBook(new Book(id, name, aname));
                     break;
                 case 3:
@@ -118,6 +173,7 @@ public class LibraryManagementSystem {
                     break;
                 case 5:
                     System.out.println("Exiting the system.");
+			break;
                 default:
                     System.out.println("Invalid option. Please try again.");
             }
